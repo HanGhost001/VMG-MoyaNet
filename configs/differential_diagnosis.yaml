@@ -1,0 +1,103 @@
+# Differential Diagnosis Configuration
+# Classification of MMD vs ICAS vs Normal Control using full-brain analysis
+
+# Task Configuration
+task:
+  name: "differential_diagnosis"
+  description: "Differential diagnosis: MMD vs ICAS vs Normal Control"
+  num_classes: 3
+  class_names: ["MMD", "ICAS", "NC"]
+  # MMD: Moyamoya Disease
+  # ICAS: Intracranial Atherosclerotic Stenosis
+  # NC: Normal Control
+
+# Data Configuration
+data:
+  input_shape: [224, 224, 224]  # (Z, Y, X) voxels - full brain
+  in_channels: 2  # MRA + Vessel Mask
+  spacing_mm: [1.0, 1.0, 1.0]  # Isotropic 1mm
+  crop_margin_vox: 10
+  use_augmentation: true
+  allow_flip_lr: true  # Can flip for full-brain analysis
+  use_nonzero_normalization: true  # Normalize using non-zero voxels
+
+# Model Configuration
+model:
+  architecture: "densenet121"  # Options: densenet121, resnet3d18
+  growth_rate: 56  # DenseNet growth rate (~30-31M params)
+  dropout: 0.5
+  use_pretrained: false  # DenseNet doesn't use MedicalNet pre-training
+
+# Training Configuration
+training:
+  seed: 20251225
+  batch_size: 4
+  epochs: 200
+  patience: 50
+  gradient_accumulation_steps: 1
+  
+  # Optimizer
+  optimizer:
+    type: "AdamW"
+    lr: 0.0002
+    weight_decay: 0.01
+  
+  # Learning Rate Scheduler
+  lr_scheduler:
+    type: "cosine"
+    t_max: 200
+    eta_min: 0.000002
+    warmup_epochs: 10
+    warmup_start_lr: 0.000001
+  
+  # Loss Function
+  loss:
+    type: "focal"
+    focal_alpha: [1.0, 1.3, 1.5]  # MMD, ICAS, NC weights
+    focal_gamma: 2.0
+  
+  # Class Balancing
+  use_weighted_sampler: true
+  
+  # Mixed Precision
+  use_amp: true
+
+# DataLoader Configuration
+dataloader:
+  num_workers: 6
+  persistent_workers: true
+  pin_memory: true
+  prefetch_factor: 2
+
+# Paths Configuration
+paths:
+  train_csv: "data/diagnosis/splits/train.csv"
+  val_csv: "data/diagnosis/splits/val.csv"
+  test_csv: "data/diagnosis/splits/test.csv"  # Optional, can be null
+  output_dir: "runs/differential_diagnosis"
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1_macro"
+    - "cohen_kappa"
+    - "auc_macro"
+    - "sensitivity"
+    - "specificity"
+  save_confusion_matrix: true
+  save_predictions: true
+  validation_frequency: 1  # Validate every N epochs
+
+# Ensemble Configuration
+ensemble:
+  num_models: 5
+  aggregation: "mean"  # Options: mean, voting
+  use_tta: false  # Test-time augmentation
+
+# Logging Configuration
+logging:
+  tensorboard: true
+  save_best_model: true
+  checkpoint_frequency: 10

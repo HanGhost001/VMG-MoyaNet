@@ -1,0 +1,91 @@
+# Houkin Grading Configuration
+# Classification of Moyamoya Disease severity using hemisphere-level analysis
+
+# Task Configuration
+task:
+  name: "houkin_grading"
+  description: "Houkin grade classification for Moyamoya Disease"
+  num_classes: 3  # G1, G2, G3-4 (Grade 3 and 4 combined)
+  class_names: ["Grade 1", "Grade 2", "Grade 3-4"]
+
+# Data Configuration
+data:
+  input_shape: [160, 160, 160]  # (Z, Y, X) voxels
+  in_channels: 2  # MRA + Vessel Mask
+  spacing_mm: [1.0, 1.0, 1.0]  # Isotropic 1mm
+  crop_margin_vox: 10
+  use_augmentation: true
+  allow_flip_lr: false  # Don't flip for hemisphere-level analysis
+  use_nonzero_normalization: true  # Use non-zero voxel normalization (global_norm variant)
+
+# Model Configuration
+model:
+  architecture: "densenet121"  # Options: densenet121, resnet3d10, resnet3d18, resnet3d34, resnet3d50
+  growth_rate: 56  # DenseNet growth rate (~30-31M params)
+  dropout: 0.5
+  use_pretrained: false  # DenseNet doesn't use MedicalNet pre-training
+
+# Training Configuration
+training:
+  seed: 20251225
+  batch_size: 4
+  epochs: 200
+  patience: 50  # Early stopping patience
+  gradient_accumulation_steps: 1
+  
+  # Optimizer
+  optimizer:
+    type: "AdamW"
+    lr: 0.0002
+    weight_decay: 0.01
+  
+  # Learning Rate Scheduler
+  lr_scheduler:
+    type: "cosine"  # Options: cosine, plateau
+    t_max: 200
+    eta_min: 0.000002
+    warmup_epochs: 10
+    warmup_start_lr: 0.000001
+  
+  # Loss Function
+  loss:
+    type: "focal"  # Options: cross_entropy, focal
+    focal_alpha: [1.0, 1.0, 3.0]  # G1, G2, G3-4 weights
+    focal_gamma: 2.0
+  
+  # Class Balancing
+  use_weighted_sampler: true
+  
+  # Mixed Precision
+  use_amp: true
+
+# DataLoader Configuration
+dataloader:
+  num_workers: 8
+  persistent_workers: true
+  pin_memory: true
+  prefetch_factor: 2
+
+# Paths Configuration
+paths:
+  train_csv: "data/houkin/splits/train.csv"
+  val_csv: "data/houkin/splits/val.csv"
+  test_csv: "data/houkin/splits/test.csv"  # Optional, can be null
+  output_dir: "runs/houkin_grading"
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1_macro"
+    - "cohen_kappa"
+    - "auc_macro"
+  save_confusion_matrix: true
+  save_predictions: true
+
+# Logging Configuration
+logging:
+  tensorboard: true
+  save_best_model: true
+  checkpoint_frequency: 10  # Save checkpoint every N epochs
